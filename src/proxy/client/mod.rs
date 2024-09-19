@@ -71,7 +71,7 @@ impl HttpClient {
         let mut client_builder = self
             .ws
             .request(req.method().clone(), req.uri().to_string())
-            .headers(req.headers().clone())
+            .headers(std::mem::take(req.headers_mut()))
             .upgrade_with_key(key);
 
         // Set the sec-websocket-protocol header if it exists
@@ -88,7 +88,7 @@ impl HttpClient {
         }
 
         // Send the request to the server
-        let resp = client_builder.send().await?;
+        let mut resp = client_builder.send().await?;
 
         // Create a new response with the same status and version as the response from the server
         let mut builder = Builder::new().status(resp.status()).version(resp.version());
@@ -96,7 +96,7 @@ impl HttpClient {
         // Copy the headers from the response
         builder
             .headers_mut()
-            .map(|h| h.extend(resp.headers().clone()));
+            .map(|h| h.extend(std::mem::take(resp.headers_mut())));
 
         // Return an empty body
         let response = builder.body(Body::empty())?;
