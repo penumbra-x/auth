@@ -72,10 +72,6 @@ impl MitmProxy {
             req = Request::from_parts(parts, body);
         };
 
-        let headers = req.headers_mut();
-        // Remove connecetion
-        headers.remove(header::CONNECTION);
-
         let mut res = match self.client.http(req).await {
             Ok(res) => res,
             Err(err) => {

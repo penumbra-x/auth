@@ -25,7 +25,10 @@ impl HttpClient {
     }
 
     pub async fn http(&self, req: Request<Body>) -> Result<Response<Body>, Error> {
-        let (parts, body) = req.into_parts();
+        let (mut parts, body) = req.into_parts();
+
+        // Remove connecetion
+        let _ = parts.headers.remove(header::CONNECTION);
 
         // Send request
         let mut resp = self
