@@ -26,7 +26,6 @@ pub struct Proxy {
     /// Upstream proxy
     pub proxy: Option<Url>,
 
-    /// A future that once resolved will cause the proxy server to shut down.
     /// The certificate authority to use.
     pub ca: Arc<CertificateAuthority>,
 }

@@ -7,7 +7,7 @@ use http::{
     Request, Response,
 };
 use hyper::Body;
-use rquest::{Client, Url, WebSocket};
+use rquest::{tls::Impersonate, Client, Url, WebSocket};
 use tokio_tungstenite::tungstenite::error::ProtocolError;
 
 #[derive(Clone)]
@@ -121,12 +121,7 @@ fn build_client(proxy: Option<Url>, ws: bool) -> Result<Client, Error> {
     }
 
     builder
-        .permute_extensions()
-        .enable_ech_grease()
-        .tcp_keepalive(None)
-        .pool_max_idle_per_host(0)
-        .http1_title_case_headers()
-        .danger_accept_invalid_certs(true)
+        .impersonate_with_headers(Impersonate::SafariIos17_4_1, false)
         .build()
         .map_err(Into::into)
 }
