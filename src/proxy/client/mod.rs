@@ -64,8 +64,8 @@ impl HttpClient {
         let key = req
             .headers()
             .get(header::SEC_WEBSOCKET_KEY)
+            .and_then(|h| h.to_str().map(ToOwned::to_owned).ok())
             .ok_or(ProtocolError::MissingSecWebSocketKey)?;
-        let key = key.to_str().map(ToOwned::to_owned).unwrap_or_default();
 
         // Extract the request sec-websocket-protocol
         let protocol = req.headers().get(header::SEC_WEBSOCKET_PROTOCOL).cloned();
@@ -74,7 +74,7 @@ impl HttpClient {
         let mut client_builder = self
             .ws
             .request(req.method().clone(), req.uri().to_string())
-            .headers(std::mem::take(req.headers_mut()))
+            .headers(req.headers().clone())
             .upgrade_with_key(key);
 
         // Set the sec-websocket-protocol header if it exists
@@ -87,6 +87,7 @@ impl HttpClient {
                 .map(|s| s.trim().to_owned())
                 .collect::<Vec<String>>();
 
+            tracing::debug!("WebSocket protocols: {protocols:?}");
             client_builder = client_builder.protocols(protocols);
         }
 
@@ -99,7 +100,7 @@ impl HttpClient {
         // Copy the headers from the response
         builder
             .headers_mut()
-            .map(|h| h.extend(std::mem::take(resp.headers_mut())));
+            .map(|h| h.extend(resp.headers_mut().clone()));
 
         // Return an empty body
         let response = builder.body(Body::empty())?;
@@ -125,6 +126,7 @@ fn build_client(proxy: Option<Url>, ws: bool) -> Result<Client, Error> {
 
     builder
         .impersonate_with_headers(Impersonate::SafariIos17_4_1, false)
+        .danger_accept_invalid_certs(true)
         .build()
         .map_err(Into::into)
 }

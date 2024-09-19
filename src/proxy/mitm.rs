@@ -17,7 +17,7 @@ use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::WebSocketStream;
-use tracing::{error, info_span, instrument, warn, Instrument, Span};
+use tracing::{info_span, instrument, Instrument, Span};
 
 /// Enum representing either an HTTP request or response.
 #[allow(dead_code)]
@@ -35,7 +35,7 @@ pub(crate) struct MitmProxy {
 
 impl MitmProxy {
     pub(crate) async fn proxy(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-        tracing::info!("{:?}", req);
+        tracing::info!("{req:?}");
         if req.method() == Method::CONNECT {
             Ok(self.process_connect(req))
         } else if client::ws::is_upgrade_request(&req) {
@@ -75,7 +75,7 @@ impl MitmProxy {
         let mut res = match self.client.http(req).await {
             Ok(res) => res,
             Err(err) => {
-                tracing::warn!("Proxy request failed: {err:?}");
+                tracing::warn!("Http proxy request failed: {err:?}");
                 bad_request()
             }
         };
@@ -101,7 +101,10 @@ impl MitmProxy {
                             let bytes_read = match upgraded.read(&mut buffer).await {
                                 Ok(bytes_read) => bytes_read,
                                 Err(e) => {
-                                    error!("Failed to read from upgraded connection: {}", e);
+                                    tracing::error!(
+                                        "Failed to read from upgraded connection: {}",
+                                        e
+                                    );
                                     return;
                                 }
                             };
@@ -115,7 +118,7 @@ impl MitmProxy {
                                 if let Err(e) =
                                     self.serve_stream(upgraded, Scheme::HTTP, authority).await
                                 {
-                                    error!("WebSocket connect error: {}", e);
+                                    tracing::error!("WebSocket connect error: {}", e);
                                 }
 
                                 return;
@@ -126,7 +129,10 @@ impl MitmProxy {
                                     match TlsAcceptor::from(server_config).accept(upgraded).await {
                                         Ok(stream) => stream,
                                         Err(e) => {
-                                            error!("Failed to establish TLS connection: {}", e);
+                                            tracing::error!(
+                                                "Failed to establish TLS connection: {}",
+                                                e
+                                            );
                                             return;
                                         }
                                     };
@@ -136,13 +142,13 @@ impl MitmProxy {
                                 {
                                     if !e.to_string().starts_with("error shutting down connection")
                                     {
-                                        error!("HTTPS connect error: {}", e);
+                                        tracing::error!("HTTPS connect error: {}", e);
                                     }
                                 }
 
                                 return;
                             } else {
-                                warn!(
+                                tracing::warn!(
                                     "Unknown protocol, read '{:02X?}' from upgraded connection",
                                     &buffer[..bytes_read]
                                 );
@@ -151,7 +157,7 @@ impl MitmProxy {
                             let mut server = match TcpStream::connect(authority.as_ref()).await {
                                 Ok(server) => server,
                                 Err(e) => {
-                                    error!("Failed to connect to {}: {}", authority, e);
+                                    tracing::error!("Failed to connect to {}: {}", authority, e);
                                     return;
                                 }
                             };
@@ -159,10 +165,10 @@ impl MitmProxy {
                             if let Err(e) =
                                 tokio::io::copy_bidirectional(&mut upgraded, &mut server).await
                             {
-                                error!("Failed to tunnel to {}: {}", authority, e);
+                                tracing::error!("Failed to tunnel to {}: {}", authority, e);
                             }
                         }
-                        Err(e) => error!("Upgrade error: {}", e),
+                        Err(e) => tracing::error!("Upgrade error: {}", e),
                     };
                 };
 
@@ -197,14 +203,14 @@ impl MitmProxy {
             Request::from_parts(parts, body)
         };
 
+        let span = info_span!("upgrade_websocket");
         match self.client.websocket(&mut req).await {
             Ok((resp, server_socket)) => {
-                let span = info_span!("upgrade_websocket");
                 let fut = async move {
                     match client::ws::upgrade(&mut req, None).await {
                         Ok(client_socket) => handle_websocket(client_socket, server_socket).await,
                         Err(err) => {
-                            error!("Failed to upgrade websocket: {err}")
+                            tracing::error!("Failed to upgrade websocket: {err}")
                         }
                     }
                 };
@@ -213,7 +219,7 @@ impl MitmProxy {
                 resp
             }
             Err(err) => {
-                tracing::warn!("Proxy request failed: {err:?}");
+                tracing::warn!("Websocket proxy request failed: {err:?}");
                 bad_request()
             }
         }
