@@ -1,0 +1,45 @@
+[package]
+name = "auth"
+description = "auth Cloudflare in HTTP proxy"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.89"
+thiserror = "1.0.63"
+
+typed-builder = "0.20.0"
+time = "0.3.30"
+rand = "0.8.5"
+moka = { version = "0.12.8", default-features = false, features = ["sync"] }
+tokio = { version = "1.40.0", default-features = false, features = ["macros", "signal", "rt-multi-thread"] }
+
+hyper = { version = "0.14", features = ["client", "http1", "server", "tcp", "stream"] }
+
+bytes = "1.7.2"
+http = "0.2.12"
+pin-project-lite = "0.2.10"
+
+clap = { version = "4", features = ["derive", "env"] }
+futures-util = "0.3"
+
+# ca
+rcgen = { version = "0.12.1", features = ["x509-parser"] }
+tokio-rustls = { version = "0.24.1", default-features = false, features = ["tls12"] }
+rustls = { version = "0.21.8", features = ["dangerous_configuration"] }
+rustls-pemfile = "1.0.4"
+
+# client
+rquest = { version ="0.20", features = ["stream", "socks", "websocket"] }
+tokio-tungstenite = "0.24.0"
+
+# log
+tracing = { version = "0.1.40" }
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+
+[target.'cfg(target_family = "unix")'.dependencies]
+daemonize = "0.5.0"
+nix = { version = "0.27.1", features = ["signal", "user", "ptrace"]}
