@@ -78,7 +78,6 @@ impl<H: HttpHandler> MitmProxy<H> {
         {
             let headers = req.headers_mut();
             headers.remove(http::header::HOST);
-            headers.remove(http::header::ACCEPT_ENCODING);
             headers.remove(http::header::CONTENT_LENGTH);
             headers.remove(http::header::CONNECTION);
         }
