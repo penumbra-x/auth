@@ -1,4 +1,5 @@
 use super::client;
+use super::handler::HttpHandler;
 use super::{ca::CertificateAuthority, client::HttpClient, rewind::Rewind};
 use futures_util::{Future, SinkExt, StreamExt};
 use http::uri::Authority;
@@ -28,14 +29,15 @@ pub enum RequestOrResponse {
 }
 
 #[derive(Clone)]
-pub(crate) struct MitmProxy {
+pub(crate) struct MitmProxy<H: HttpHandler> {
+    pub handler: H,
     pub ca: Arc<CertificateAuthority>,
     pub client: HttpClient,
 }
 
-impl MitmProxy {
+impl<H: HttpHandler> MitmProxy<H> {
     pub(crate) async fn proxy(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-        tracing::info!("{req:?}");
+        tracing::debug!("{req:?}");
         if req.method() == Method::CONNECT {
             Ok(self.process_connect(req))
         } else if client::ws::is_upgrade_request(&req) {
@@ -72,7 +74,22 @@ impl MitmProxy {
             req = Request::from_parts(parts, body);
         };
 
-        let mut res = match self.client.http(req).await {
+        {
+            let headers = req.headers_mut();
+            headers.remove(http::header::HOST);
+            headers.remove(http::header::ACCEPT_ENCODING);
+            headers.remove(http::header::CONTENT_LENGTH);
+            headers.remove(http::header::CONNECTION);
+        }
+
+        let req = match self.handler.handle_request(req) {
+            RequestOrResponse::Request(request) => request,
+            RequestOrResponse::Response(response) => {
+                return Ok(response);
+            }
+        };
+
+        let res = match self.client.http(req).await {
             Ok(res) => res,
             Err(err) => {
                 tracing::warn!("Http proxy request failed: {err:?}");
@@ -80,6 +97,7 @@ impl MitmProxy {
             }
         };
 
+        let mut res = self.handler.handle_response(res);
         {
             let header_mut = res.headers_mut();
             // Remove `Strict-Transport-Security` to avoid HSTS

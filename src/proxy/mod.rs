@@ -1,9 +1,11 @@
 mod ca;
 mod client;
+mod handler;
 mod mitm;
 mod rewind;
 
 use crate::error::Error;
+use handler::HttpHandler;
 use hyper::{
     server::conn::AddrStream,
     service::{make_service_fn, service_fn},
@@ -33,6 +35,7 @@ pub struct Proxy {
 impl Proxy {
     pub async fn start<F: Future<Output = ()>>(self, shutdown_signal: F) -> Result<(), Error> {
         let client = HttpClient::new(self.proxy)?;
+        let http_handler = PreAuthHandler;
         let make_service = make_service_fn(move |_conn: &AddrStream| {
             let ca = Arc::clone(&self.ca);
             let client = client.clone();
@@ -41,6 +44,7 @@ impl Proxy {
                     let mitm_proxy = MitmProxy {
                         ca: Arc::clone(&ca),
                         client: client.clone(),
+                        handler: http_handler,
                     };
                     mitm_proxy.proxy(req)
                 }))
@@ -54,5 +58,21 @@ impl Proxy {
             .with_graceful_shutdown(shutdown_signal)
             .await
             .map_err(Into::into)
+    }
+}
+
+#[derive(Clone, Copy)]
+struct PreAuthHandler;
+
+impl HttpHandler for PreAuthHandler {
+    fn handle_request(&self, req: http::Request<hyper::Body>) -> mitm::RequestOrResponse {
+        if req.uri().host().unwrap().eq("ios.chat.openai.com") {
+            tracing::info!("{req:?}");
+        }
+        mitm::RequestOrResponse::Request(req)
+    }
+
+    fn handle_response(&self, res: http::Response<hyper::Body>) -> http::Response<hyper::Body> {
+        res
     }
 }
