@@ -74,6 +74,7 @@ impl<H: HttpHandler> MitmProxy<H> {
             req = Request::from_parts(parts, body);
         };
 
+        // Fix VPN signature recognition
         {
             let headers = req.headers_mut();
             headers.remove(http::header::HOST);
@@ -82,6 +83,7 @@ impl<H: HttpHandler> MitmProxy<H> {
             headers.remove(http::header::CONNECTION);
         }
 
+        // Http request Handler
         let req = match self.handler.handle_request(req) {
             RequestOrResponse::Request(request) => request,
             RequestOrResponse::Response(response) => {
@@ -89,6 +91,7 @@ impl<H: HttpHandler> MitmProxy<H> {
             }
         };
 
+        // Send Http request
         let res = match self.client.http(req).await {
             Ok(res) => res,
             Err(err) => {
@@ -97,6 +100,7 @@ impl<H: HttpHandler> MitmProxy<H> {
             }
         };
 
+        // Http response handler
         let mut res = self.handler.handle_response(res);
         {
             let header_mut = res.headers_mut();
