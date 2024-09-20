@@ -1,7 +1,6 @@
 use rcgen::Error as RcgenError;
 use std::io;
 use thiserror::Error;
-use tokio_tungstenite::tungstenite::error::ProtocolError;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -19,7 +18,4 @@ pub enum Error {
 
     #[error(transparent)]
     IO(#[from] io::Error),
-
-    #[error(transparent)]
-    WebSocketError(#[from] ProtocolError),
 }

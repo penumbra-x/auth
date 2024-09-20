@@ -16,12 +16,10 @@ time = "0.3.30"
 rand = "0.8.5"
 moka = { version = "0.12.8", default-features = false, features = ["sync"] }
 tokio = { version = "1.40.0", default-features = false, features = ["macros", "signal", "rt-multi-thread"] }
-
 hyper = { version = "0.14", features = ["client", "http1", "server", "tcp", "stream"] }
 
 bytes = "1.7.2"
 http = "0.2.12"
-pin-project-lite = "0.2.10"
 
 clap = { version = "4", features = ["derive", "env"] }
 futures-util = "0.3"
@@ -33,8 +31,7 @@ rustls = { version = "0.21.8", features = ["dangerous_configuration"] }
 rustls-pemfile = "1.0.4"
 
 # client
-rquest = { version ="0.20", features = ["stream", "socks", "websocket"] }
-tokio-tungstenite = "0.24.0"
+rquest = { version ="0.20", features = ["full"] }
 
 # log
 tracing = { version = "0.1.40" }

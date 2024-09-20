@@ -67,14 +67,13 @@ struct PreAuthHandler;
 impl HttpHandler for PreAuthHandler {
     fn handle_request(&self, req: http::Request<hyper::Body>) -> mitm::RequestOrResponse {
         if req.uri().host().unwrap().eq("ios.chat.openai.com") {
-       
+            tracing::info!("{req:?}");
         }
-
-        tracing::info!("{req:?}");
         mitm::RequestOrResponse::Request(req)
     }
 
     fn handle_response(&self, res: http::Response<hyper::Body>) -> http::Response<hyper::Body> {
+        tracing::info!("{res:?}");
         res
     }
 }

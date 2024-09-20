@@ -1,23 +1,16 @@
-use super::client;
 use super::handler::HttpHandler;
 use super::{ca::CertificateAuthority, client::HttpClient, rewind::Rewind};
-use futures_util::{Future, SinkExt, StreamExt};
+use futures_util::Future;
 use http::uri::Authority;
 use http::StatusCode;
 use http::{header, uri::Scheme, Uri};
-use hyper::upgrade::Upgraded;
 use hyper::{server::conn::Http, service::service_fn, Body, Method, Request, Response};
-use rquest::WebSocket;
 use std::sync::Arc;
 use tokio::io::AsyncReadExt;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio_rustls::TlsAcceptor;
-use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
-use tokio_tungstenite::tungstenite::protocol::CloseFrame;
-use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::WebSocketStream;
 use tracing::{info_span, instrument, Instrument, Span};
 
 /// Enum representing either an HTTP request or response.
@@ -40,8 +33,6 @@ impl<H: HttpHandler> MitmProxy<H> {
         tracing::debug!("{req:?}");
         if req.method() == Method::CONNECT {
             Ok(self.process_connect(req))
-        } else if client::ws::is_upgrade_request(&req) {
-            Ok(self.upgrade_websocket(req).await)
         } else {
             self.process_request(normalize_request(req), Scheme::HTTP)
                 .await
@@ -134,15 +125,7 @@ impl<H: HttpHandler> MitmProxy<H> {
                                 bytes::Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
                             );
 
-                            if buffer == *b"GET " {
-                                if let Err(e) =
-                                    self.serve_stream(upgraded, Scheme::HTTP, authority).await
-                                {
-                                    tracing::error!("WebSocket connect error: {}", e);
-                                }
-
-                                return;
-                            } else if buffer[..2] == *b"\x16\x03" {
+                            if buffer[..2] == *b"\x16\x03" {
                                 let server_config = self.ca.clone().gen_server_config();
 
                                 let stream =
@@ -199,52 +182,6 @@ impl<H: HttpHandler> MitmProxy<H> {
         }
     }
 
-    async fn upgrade_websocket(self, req: Request<Body>) -> Response<Body> {
-        let mut req = {
-            let (mut parts, body) = req.into_parts();
-
-            parts.uri = {
-                let mut parts = parts.uri.into_parts();
-
-                parts.scheme = if parts.scheme.unwrap_or(Scheme::HTTP) == Scheme::HTTP {
-                    Some("ws".try_into().expect("Failed to convert scheme"))
-                } else {
-                    Some("wss".try_into().expect("Failed to convert scheme"))
-                };
-
-                match Uri::from_parts(parts) {
-                    Ok(uri) => uri,
-                    Err(_) => {
-                        return bad_request();
-                    }
-                }
-            };
-
-            Request::from_parts(parts, body)
-        };
-
-        let span = info_span!("upgrade_websocket");
-        match self.client.websocket(&mut req).await {
-            Ok((resp, server_socket)) => {
-                let fut = async move {
-                    match client::ws::upgrade(&mut req, None).await {
-                        Ok(client_socket) => handle_websocket(client_socket, server_socket).await,
-                        Err(err) => {
-                            tracing::error!("Failed to upgrade websocket: {err}")
-                        }
-                    }
-                };
-
-                spawn_with_trace(fut, span);
-                resp
-            }
-            Err(err) => {
-                tracing::warn!("Websocket proxy request failed: {err:?}");
-                bad_request()
-            }
-        }
-    }
-
     async fn serve_stream<I>(
         self,
         stream: I,
@@ -291,45 +228,6 @@ impl<H: HttpHandler> MitmProxy<H> {
     }
 }
 
-pub async fn handle_websocket(client_socket: WebSocketStream<Upgraded>, server_socket: WebSocket) {
-    let (mut client_sender, mut client_receiver) = client_socket.split();
-    let (mut server_sender, mut server_receiver) = server_socket.split();
-
-    loop {
-        tokio::select! {
-            Some(Ok(msg)) = server_receiver.next() => {
-                // If the server sends a message, we send it to the client
-                if let Err(err) = client_sender.send(r2m(msg)).await {
-                    tracing::debug!("Error sending message to client: {err}");
-                    break;
-                }
-            }
-            Some(Ok(msg)) = client_receiver.next() => {
-                // If the client sends a message, we send it to the server
-                if let Err(err) = server_sender.send(m2r(msg)).await {
-                    tracing::debug!("Error sending message to server: {err}");
-                    break;
-                }
-            }
-            else => {
-                break;
-            },
-        }
-    }
-
-    // If either the client or server socket is closed, we close the other
-    let _ = client_sender.close().await;
-    let _ = server_sender.close().await;
-
-    // Drop the client sockets
-    drop(client_sender);
-    drop(client_receiver);
-
-    // Drop the server sockets
-    drop(server_sender);
-    drop(server_receiver);
-}
-
 fn bad_request() -> Response<Body> {
     Response::builder()
         .status(StatusCode::BAD_REQUEST)
@@ -350,35 +248,4 @@ fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
     req.headers_mut().remove(hyper::header::HOST);
     *req.version_mut() = hyper::Version::HTTP_11;
     req
-}
-
-fn r2m(msg: rquest::Message) -> Message {
-    match msg {
-        rquest::Message::Text(text) => Message::Text(text),
-        rquest::Message::Binary(binary) => Message::Binary(binary),
-        rquest::Message::Ping(ping) => Message::Ping(ping),
-        rquest::Message::Pong(pong) => Message::Pong(pong),
-        rquest::Message::Close { code, .. } => Message::Close(Some(CloseFrame {
-            code: CloseCode::from(u16::from(code)),
-            reason: std::borrow::Cow::Borrowed("Close"),
-        })),
-    }
-}
-
-fn m2r(msg: Message) -> rquest::Message {
-    match msg {
-        Message::Text(text) => rquest::Message::Text(text),
-        Message::Binary(binary) => rquest::Message::Binary(binary),
-        Message::Ping(ping) => rquest::Message::Ping(ping),
-        Message::Pong(pong) => rquest::Message::Pong(pong),
-        Message::Close(Some(CloseFrame { code, reason })) => rquest::Message::Close {
-            code: rquest::CloseCode::from(u16::from(code)),
-            reason: Some(reason.into_owned()),
-        },
-        Message::Close(None) => rquest::Message::Close {
-            code: rquest::CloseCode::default(),
-            reason: None,
-        },
-        Message::Frame(_) => unimplemented!("Unsupport websocket frame"),
-    }
 }
