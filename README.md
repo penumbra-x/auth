@@ -9,7 +9,7 @@
 - `iOS`/`iPad`设备需要越狱或者已经安装[`巨魔`](https://github.com/opa334/TrollStore)（**越狱后也可以安装**）
 - 在巨魔商店安装[`TrollFools`](https://github.com/Lessica/TrollFools)，下载[`👉 动态库`](https://github.com/penumbra-x/auth/releases/download/lib/SSLKillSwitch2.dylib)注入到`ChatGPT`
 
-以上只是推荐的方法，当然也有其它方法，主要是绕过[`SSL pinning`](https://medium.com/trendyol-tech/securing-ios-applications-with-ssl-pinning-38d551945306)
+以上只是推荐的方法，当然也有其它方法，目的是绕过[`SSL pinning`](https://medium.com/trendyol-tech/securing-ios-applications-with-ssl-pinning-38d551945306)
 
 ### 使用
 
