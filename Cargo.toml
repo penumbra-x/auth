@@ -12,7 +12,7 @@ anyhow = "1.0.89"
 thiserror = "1.0.63"
 serde_json = "1"
 typed-builder = "0.20.0"
-time = "0.3.30"
+time = "0.3.36"
 rand = "0.8.5"
 moka = { version = "0.12.8", default-features = false, features = ["sync"] }
 tokio = { version = "1.40.0", default-features = false, features = ["macros", "signal", "rt-multi-thread"] }
