@@ -1,6 +1,6 @@
 # auth
 
-这是一个适用于`iOS`/`iPad`设备的中间人的`HTTP`代理，用于抓取`device_token`
+这是一个适用于`iOS`/`iPad`设备的`HTTP`中间人代理，用于抓取`device_token`
 
 ### 前言
 
