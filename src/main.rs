@@ -45,7 +45,7 @@ pub struct BootArgs {
     pub debug: bool,
 
     /// Bind address
-    #[clap(short, long, default_value = "0.0.0.0:8000")]
+    #[clap(short, long, default_value = "0.0.0.0:1080")]
     pub bind: SocketAddr,
 
     #[clap(short, long)]
