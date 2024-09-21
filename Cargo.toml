@@ -1,6 +1,6 @@
 [package]
 name = "auth"
-description = "auth Cloudflare in HTTP proxy"
+description = "chatgpt preauth devicecheck server"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
@@ -8,8 +8,9 @@ rust-version = "1.75"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.89"
-thiserror = "1.0.63"
+anyhow = "1"
+thiserror = "1"
+serde = { version = "1", features = ["derive"]}
 serde_json = "1"
 typed-builder = "0.20.0"
 time = "0.3.36"
@@ -30,7 +31,10 @@ rustls = { version = "0.21.8", features = ["dangerous_configuration"] }
 rustls-pemfile = "1.0.4"
 
 # client
-reqwest = { version ="0.11", default-features = false, features = ["stream", "socks", "rustls-tls"]}
+reqwest = { version ="0.11", default-features = false, features = ["stream", "socks", "json", "cookies", "rustls-tls"]}
+
+# alloc
+mimalloc = { version = "0.1.39", default-features = false }
 
 # log
 tracing = { version = "0.1.40" }
@@ -39,3 +43,10 @@ tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 [target.'cfg(target_family = "unix")'.dependencies]
 daemonize = "0.5.0"
 nix = { version = "0.27.1", features = ["signal", "user", "ptrace"]}
+
+[profile.release]
+lto = true
+opt-level = 'z'
+codegen-units = 1
+strip = true
+panic = "abort"

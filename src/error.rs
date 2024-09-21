@@ -18,4 +18,7 @@ pub enum Error {
 
     #[error(transparent)]
     IO(#[from] io::Error),
+
+    #[error(transparent)]
+    SerdeError(#[from] serde_json::Error),
 }
