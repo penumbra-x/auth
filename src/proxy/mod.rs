@@ -1,26 +1,23 @@
 mod ca;
 mod client;
-mod handler;
+pub mod handler;
 mod mitm;
 mod rewind;
 
+use self::client::HttpClient;
 use crate::error::Error;
-use handler::HttpHandler;
-use http::Response;
+pub use ca::CertificateAuthority;
+use handler::DeviceCheckHandler;
+pub use hyper;
 use hyper::{
     server::conn::AddrStream,
     service::{make_service_fn, service_fn},
-    Body, Server,
+    Server,
 };
 use mitm::MitmProxy;
 use reqwest::Url;
-use serde_json::Value;
 use std::{convert::Infallible, future::Future, net::SocketAddr, sync::Arc};
 use typed_builder::TypedBuilder;
-
-use self::client::HttpClient;
-pub use ca::CertificateAuthority;
-pub use hyper;
 
 #[derive(TypedBuilder)]
 pub struct Proxy {
@@ -36,17 +33,19 @@ pub struct Proxy {
 
 impl Proxy {
     pub async fn start<F: Future<Output = ()>>(self, shutdown_signal: F) -> Result<(), Error> {
-        let client = HttpClient::new(self.proxy)?;
-        let http_handler = PreAuthHandler;
+        let proxy = self.proxy;
+        let client = HttpClient::new(proxy.clone())?;
+        let handler = DeviceCheckHandler::new(proxy)?;
         let make_service = make_service_fn(move |_conn: &AddrStream| {
             let ca = Arc::clone(&self.ca);
             let client = client.clone();
+            let handler = handler.clone();
             async move {
                 Ok::<_, Infallible>(service_fn(move |req| {
                     let mitm_proxy = MitmProxy {
                         ca: Arc::clone(&ca),
                         client: client.clone(),
-                        handler: http_handler,
+                        handler: handler.clone(),
                     };
                     mitm_proxy.proxy(req)
                 }))
@@ -60,34 +59,5 @@ impl Proxy {
             .with_graceful_shutdown(shutdown_signal)
             .await
             .map_err(Into::into)
-    }
-}
-
-#[derive(Clone, Copy)]
-struct PreAuthHandler;
-
-impl HttpHandler for PreAuthHandler {
-    async fn handle_request(&self, req: http::Request<hyper::Body>) -> mitm::RequestOrResponse {
-        if req.uri().path().eq("/backend-api/preauth_devicecheck") {
-            tracing::info!("{req:?}");
-            match hyper::body::to_bytes(req.into_body())
-                .await
-                .map(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
-            {
-                Ok(Some(body)) => {
-                    let body = serde_json::to_string_pretty(&body).unwrap_or_default();
-                    tracing::info!("preauth_devicecheck request body: {body}")
-                }
-                Ok(None) => {}
-                Err(err) => {
-                    tracing::error!("invalid preauth_devicecheck request: {}", err)
-                }
-            }
-            // Hook return invalid request
-            return mitm::RequestOrResponse::Response(Response::new(Body::empty()));
-        }
-
-        // Pass request
-        mitm::RequestOrResponse::Request(req)
     }
 }

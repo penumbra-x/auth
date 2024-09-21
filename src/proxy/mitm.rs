@@ -1,6 +1,5 @@
-use super::handler::HttpHandler;
+use super::handler::DeviceCheckHandler;
 use super::{ca::CertificateAuthority, client::HttpClient, rewind::Rewind};
-use futures_util::Future;
 use http::uri::Authority;
 use http::StatusCode;
 use http::{header, uri::Scheme, Uri};
@@ -9,9 +8,7 @@ use std::sync::Arc;
 use tokio::io::AsyncReadExt;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
-use tokio::task::JoinHandle;
 use tokio_rustls::TlsAcceptor;
-use tracing::{info_span, instrument, Instrument, Span};
 
 /// Enum representing either an HTTP request or response.
 #[allow(dead_code)]
@@ -22,13 +19,13 @@ pub enum RequestOrResponse {
 }
 
 #[derive(Clone)]
-pub(crate) struct MitmProxy<H: HttpHandler> {
-    pub handler: H,
+pub struct MitmProxy {
+    pub handler: DeviceCheckHandler,
     pub ca: Arc<CertificateAuthority>,
     pub client: HttpClient,
 }
 
-impl<H: HttpHandler> MitmProxy<H> {
+impl MitmProxy {
     pub(crate) async fn proxy(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         tracing::debug!("{req:?}");
         if req.method() == Method::CONNECT {
@@ -46,6 +43,10 @@ impl<H: HttpHandler> MitmProxy<H> {
     ) -> Result<Response<Body>, hyper::Error> {
         if req.uri().path().starts_with("/mitm/cert") {
             return Ok(self.get_cert_res());
+        }
+
+        if req.uri().path().starts_with("/auth/preauth") {
+            return Ok(self.get_preauth_res());
         }
 
         if req.version() == http::Version::HTTP_10 || req.version() == http::Version::HTTP_11 {
@@ -81,22 +82,18 @@ impl<H: HttpHandler> MitmProxy<H> {
         };
 
         // Send Http request
-        let res = match self.client.http(req).await {
+        let mut res = match self.client.http(req).await {
             Ok(res) => res,
             Err(err) => {
-                tracing::warn!("Http proxy request failed: {err:?}");
+                tracing::debug!("Http proxy request failed: {err:?}");
                 bad_request()
             }
         };
 
-        // Http response handler
-        let mut res = self.handler.handle_response(res);
-        {
-            let header_mut = res.headers_mut();
-            // Remove `Strict-Transport-Security` to avoid HSTS
-            // See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security
-            header_mut.remove(header::STRICT_TRANSPORT_SECURITY);
-        }
+        let header_mut = res.headers_mut();
+        // Remove `Strict-Transport-Security` to avoid HSTS
+        // See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security
+        header_mut.remove(header::STRICT_TRANSPORT_SECURITY);
 
         Ok(res)
     }
@@ -104,7 +101,6 @@ impl<H: HttpHandler> MitmProxy<H> {
     fn process_connect(self, mut req: Request<Body>) -> Response<Body> {
         match req.uri().authority().cloned() {
             Some(authority) => {
-                let span = info_span!("process_connect");
                 let fut = async move {
                     match hyper::upgrade::on(&mut req).await {
                         Ok(mut upgraded) => {
@@ -175,7 +171,8 @@ impl<H: HttpHandler> MitmProxy<H> {
                     };
                 };
 
-                spawn_with_trace(fut, span);
+                tokio::spawn(fut);
+
                 Response::new(Body::empty())
             }
             None => bad_request(),
@@ -215,7 +212,7 @@ impl<H: HttpHandler> MitmProxy<H> {
             .await
     }
 
-    fn get_cert_res(&self) -> hyper::Response<Body> {
+    fn get_cert_res(&self) -> Response<Body> {
         Response::builder()
             .header(
                 http::header::CONTENT_DISPOSITION,
@@ -226,6 +223,13 @@ impl<H: HttpHandler> MitmProxy<H> {
             .body(Body::from(self.ca.clone().get_cert()))
             .expect("Failed build response")
     }
+
+    fn get_preauth_res(&self) -> Response<Body> {
+        match self.handler.get_cookie_res() {
+            Ok(res) => res,
+            Err(_) => bad_request(),
+        }
+    }
 }
 
 fn bad_request() -> Response<Body> {
@@ -235,14 +239,6 @@ fn bad_request() -> Response<Body> {
         .expect("Failed to build response")
 }
 
-fn spawn_with_trace<T: Send + Sync + 'static>(
-    fut: impl Future<Output = T> + Send + 'static,
-    span: Span,
-) -> JoinHandle<T> {
-    tokio::spawn(fut.instrument(span))
-}
-
-#[instrument(skip_all)]
 fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
     // Hyper will automatically add a Host header if needed.
     req.headers_mut().remove(hyper::header::HOST);

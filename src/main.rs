@@ -9,6 +9,9 @@ use clap::{Args, Parser, Subcommand};
 use reqwest::Url;
 use std::{net::SocketAddr, path::PathBuf};
 
+#[global_allocator]
+static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 #[derive(Parser)]
 #[clap(author, version, about, arg_required_else_help = true)]
 #[command(args_conflicts_with_subcommands = true)]
@@ -48,6 +51,7 @@ pub struct BootArgs {
     #[clap(short, long, default_value = "0.0.0.0:1080")]
     pub bind: SocketAddr,
 
+    /// Upstream proxy
     #[clap(short, long)]
     pub proxy: Option<Url>,
 
