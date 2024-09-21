@@ -14,7 +14,7 @@ pub enum Error {
     BodyErrpr(#[from] http::Error),
 
     #[error(transparent)]
-    RequestConnectError(#[from] rquest::Error),
+    RequestConnectError(#[from] reqwest::Error),
 
     #[error(transparent)]
     IO(#[from] io::Error),

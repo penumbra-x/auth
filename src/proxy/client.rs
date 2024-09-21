@@ -1,7 +1,7 @@
 use crate::error::Error;
 use http::{response::Builder, Request, Response};
 use hyper::Body;
-use rquest::{tls::Impersonate, Client, Url};
+use reqwest::{Client, Url};
 
 #[derive(Clone)]
 pub struct HttpClient {
@@ -23,7 +23,7 @@ impl HttpClient {
             .inner
             .request(parts.method, parts.uri.to_string())
             .headers(parts.headers)
-            .body(rquest::Body::wrap_stream(body))
+            .body(reqwest::Body::wrap_stream(body))
             .send()
             .await?;
 
@@ -49,7 +49,7 @@ fn build_client(proxy: Option<Url>, ws: bool) -> Result<Client, Error> {
     let mut builder = Client::builder();
 
     if let Some(proxy) = proxy {
-        let proxy = rquest::Proxy::all(proxy)?;
+        let proxy = reqwest::Proxy::all(proxy)?;
         builder = builder.proxy(proxy);
     }
 
@@ -57,9 +57,5 @@ fn build_client(proxy: Option<Url>, ws: bool) -> Result<Client, Error> {
         builder = builder.http1_only();
     }
 
-    builder
-        .impersonate_with_headers(Impersonate::SafariIos17_4_1, false)
-        .danger_accept_invalid_certs(true)
-        .build()
-        .map_err(Into::into)
+    builder.build().map_err(Into::into)
 }

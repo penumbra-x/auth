@@ -6,13 +6,15 @@ mod rewind;
 
 use crate::error::Error;
 use handler::HttpHandler;
+use http::Response;
 use hyper::{
     server::conn::AddrStream,
     service::{make_service_fn, service_fn},
-    Server,
+    Body, Server,
 };
 use mitm::MitmProxy;
-use rquest::Url;
+use reqwest::Url;
+use serde_json::Value;
 use std::{convert::Infallible, future::Future, net::SocketAddr, sync::Arc};
 use typed_builder::TypedBuilder;
 
@@ -65,15 +67,27 @@ impl Proxy {
 struct PreAuthHandler;
 
 impl HttpHandler for PreAuthHandler {
-    fn handle_request(&self, req: http::Request<hyper::Body>) -> mitm::RequestOrResponse {
-        if req.uri().host().unwrap().eq("ios.chat.openai.com") {
+    async fn handle_request(&self, req: http::Request<hyper::Body>) -> mitm::RequestOrResponse {
+        if req.uri().path().eq("/backend-api/preauth_devicecheck") {
             tracing::info!("{req:?}");
+            match hyper::body::to_bytes(req.into_body())
+                .await
+                .map(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+            {
+                Ok(Some(body)) => {
+                    let body = serde_json::to_string_pretty(&body).unwrap_or_default();
+                    tracing::info!("preauth_devicecheck request body: {body}")
+                }
+                Ok(None) => {}
+                Err(err) => {
+                    tracing::error!("invalid preauth_devicecheck request: {}", err)
+                }
+            }
+            // Hook return invalid request
+            return mitm::RequestOrResponse::Response(Response::new(Body::empty()));
         }
-        mitm::RequestOrResponse::Request(req)
-    }
 
-    fn handle_response(&self, res: http::Response<hyper::Body>) -> http::Response<hyper::Body> {
-        tracing::info!("{res:?}");
-        res
+        // Pass request
+        mitm::RequestOrResponse::Request(req)
     }
 }

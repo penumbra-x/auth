@@ -6,7 +6,7 @@ mod serve;
 
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
-use rquest::Url;
+use reqwest::Url;
 use std::{net::SocketAddr, path::PathBuf};
 
 #[derive(Parser)]

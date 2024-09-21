@@ -73,7 +73,7 @@ impl<H: HttpHandler> MitmProxy<H> {
         }
 
         // Http request Handler
-        let req = match self.handler.handle_request(req) {
+        let req = match self.handler.handle_request(req).await {
             RequestOrResponse::Request(request) => request,
             RequestOrResponse::Response(response) => {
                 return Ok(response);
@@ -132,7 +132,7 @@ impl<H: HttpHandler> MitmProxy<H> {
                                     match TlsAcceptor::from(server_config).accept(upgraded).await {
                                         Ok(stream) => stream,
                                         Err(e) => {
-                                            tracing::error!(
+                                            tracing::debug!(
                                                 "Failed to establish TLS connection: {}",
                                                 e
                                             );
