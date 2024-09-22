@@ -1,7 +1,7 @@
 use crate::error::Error;
 use http::{response::Builder, Request, Response};
 use hyper::Body;
-use reqwest::{Client, Url};
+use reqwest::{redirect::Policy, Client, Url};
 
 #[derive(Clone)]
 pub struct HttpClient {
@@ -10,9 +10,18 @@ pub struct HttpClient {
 
 impl HttpClient {
     pub fn new(proxy: Option<Url>) -> Result<Self, Error> {
-        Ok(Self {
-            inner: build_client(proxy.clone(), false)?,
-        })
+        let mut builder = Client::builder();
+
+        if let Some(proxy) = proxy {
+            let proxy = reqwest::Proxy::all(proxy)?;
+            builder = builder.proxy(proxy);
+        }
+
+        builder
+            .redirect(Policy::none())
+            .build()
+            .map(|inner| Self { inner })
+            .map_err(Into::into)
     }
 
     pub async fn http(&self, req: Request<Body>) -> Result<Response<Body>, Error> {
@@ -43,19 +52,4 @@ impl HttpClient {
             .body(Body::wrap_stream(resp.bytes_stream()))
             .map_err(Into::into)
     }
-}
-
-fn build_client(proxy: Option<Url>, ws: bool) -> Result<Client, Error> {
-    let mut builder = Client::builder();
-
-    if let Some(proxy) = proxy {
-        let proxy = reqwest::Proxy::all(proxy)?;
-        builder = builder.proxy(proxy);
-    }
-
-    if ws {
-        builder = builder.http1_only();
-    }
-
-    builder.build().map_err(Into::into)
 }
