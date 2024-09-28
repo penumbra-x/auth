@@ -4,16 +4,27 @@ use crate::proxy::{CertificateAuthority, Proxy};
 use crate::{cagen, BootArgs};
 use anyhow::{Context, Result};
 use tokio::fs;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-pub struct Serve(BootArgs);
+pub struct Serve(pub BootArgs);
 
 impl Serve {
-    pub fn new(args: BootArgs) -> Self {
-        Self(args)
-    }
-
     #[tokio::main]
     pub async fn run(self) -> Result<()> {
+        if self.0.debug {
+            std::env::set_var("RUST_LOG", "debug");
+        } else {
+            std::env::set_var("RUST_LOG", "info");
+        }
+        // Init tracing
+        tracing_subscriber::registry()
+            .with(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| "RUST_LOG=info".into()),
+            )
+            .with(tracing_subscriber::fmt::layer())
+            .init();
+
         // Generate a certificate authority
         if !self.0.cert.exists() || !self.0.key.exists() {
             cagen::gen_ca(&self.0.cert, &self.0.key);
