@@ -6,18 +6,13 @@ use std::{
     os::unix::fs::PermissionsExt,
     path::Path,
 };
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-#[cfg(target_family = "unix")]
 const PID_PATH: &str = "/var/run/auth.pid";
-#[cfg(target_family = "unix")]
 const DEFAULT_STDOUT_PATH: &str = "/var/run/auth.out";
-#[cfg(target_family = "unix")]
 const DEFAULT_STDERR_PATH: &str = "/var/run/auth.err";
 
 /// Get the pid of the daemon
-#[cfg(target_family = "unix")]
-pub(crate) fn get_pid() -> Option<String> {
+fn get_pid() -> Option<String> {
     if let Ok(data) = std::fs::read(PID_PATH) {
         let binding = String::from_utf8(data).expect("pid file is not utf8");
         return Some(binding.trim().to_string());
@@ -26,33 +21,14 @@ pub(crate) fn get_pid() -> Option<String> {
 }
 
 /// Check if the current user is root
-#[cfg(target_family = "unix")]
-pub fn check_root() {
+fn check_root() {
     if !nix::unistd::Uid::effective().is_root() {
         println!("You must run this executable with root permissions");
         std::process::exit(-1)
     }
 }
 
-pub fn run(args: BootArgs) -> Result<()> {
-    if args.debug {
-        std::env::set_var("RUST_LOG", "debug");
-    } else {
-        std::env::set_var("RUST_LOG", "info");
-    }
-    // Init tracing
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "RUST_LOG=info".into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
-    Serve::new(args).run()
-}
-
 /// Start the daemon
-#[cfg(target_family = "unix")]
 pub fn start(args: BootArgs) -> Result<()> {
     if let Some(pid) = get_pid() {
         println!("auth is already running with pid: {}", pid);
@@ -91,11 +67,10 @@ pub fn start(args: BootArgs) -> Result<()> {
         std::process::exit(-1)
     }
 
-    run(args)
+    Serve(args).run()
 }
 
 /// Stop the daemon
-#[cfg(target_family = "unix")]
 pub fn stop() -> Result<()> {
     use nix::sys::signal;
     use nix::unistd::Pid;
@@ -117,14 +92,12 @@ pub fn stop() -> Result<()> {
 }
 
 /// Restart the daemon
-#[cfg(target_family = "unix")]
 pub fn restart(args: BootArgs) -> Result<()> {
     stop()?;
     start(args)
 }
 
 /// Show the status of the daemon
-#[cfg(target_family = "unix")]
 pub fn status() {
     match get_pid() {
         Some(pid) => println!("auth is running with pid: {}", pid),
@@ -133,7 +106,6 @@ pub fn status() {
 }
 
 /// Show the log of the daemon
-#[cfg(target_family = "unix")]
 pub fn log() -> Result<()> {
     fn read_and_print_file(file_path: &Path, placeholder: &str) -> Result<()> {
         if !file_path.exists() {
