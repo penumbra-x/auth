@@ -1,9 +1,10 @@
 [package]
-name = "auth"
+name = "devicecheck"
 description = "chatgpt preauth devicecheck server"
 version = "1.0.1"
 edition = "2021"
 rust-version = "1.75"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
