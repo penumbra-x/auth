@@ -58,12 +58,6 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 cargo install --git https://github.com/penumbra-x/devicecheck
 ```
 
-- Docker
-
-```bash
-docker run --rm -it -p 1080:1080 ghcr.io/penumbra-x/devicecheck:latest run
-```
-
 ### 使用
 
 该代理不会像正常代理一样提供网络代理，目的是抓包`device_token`。如果害怕使用多了会被封设备，我建议是使用一些一键换机之类的仿冒设备的软件。
