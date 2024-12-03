@@ -98,10 +98,13 @@ pub fn restart(args: BootArgs) -> Result<()> {
 }
 
 /// Show the status of the daemon
-pub fn status() {
+pub fn status() -> Result<()> {
     match get_pid() {
-        Some(pid) => println!("auth is running with pid: {}", pid),
-        None => println!("auth is not running"),
+        Some(pid) => {
+            println!("auth is running with pid: {}", pid);
+            Ok(())
+        }
+        None => anyhow::bail!("auth is not running"),
     }
 }
 

@@ -1,4 +1,4 @@
-# auth
+# devicecheck
 
 这是一个适用于`iOS`/`iPad`设备的`HTTP`中间人代理，用于抓取`device_token`
 
@@ -7,18 +7,18 @@
 最新版的`ChatGPT` APP已上[`SSL pinning`](https://medium.com/trendyol-tech/securing-ios-applications-with-ssl-pinning-38d551945306)验证，使用前提:
 
 - `iOS`/`iPad`设备需要越狱或者已经安装[`巨魔`](https://github.com/opa334/TrollStore)（**越狱后也可以安装**）
-- 在[`巨魔`](https://github.com/opa334/TrollStore)商店安装[`TrollFools`](https://github.com/Lessica/TrollFools)，下载[`👉 动态库`](https://github.com/penumbra-x/auth/releases/download/lib/SSLKillSwitch2.dylib)注入到`ChatGPT`
+- 在[`巨魔`](https://github.com/opa334/TrollStore)商店安装[`TrollFools`](https://github.com/Lessica/TrollFools)，下载[`👉 动态库`](https://github.com/penumbra-x/devicecheck/releases/download/lib/SSLKillSwitch2.dylib)注入到`ChatGPT`
 
 以上只是推荐的方法，当然也有其它方法，目的是绕过[`SSL pinning`](https://medium.com/trendyol-tech/securing-ios-applications-with-ssl-pinning-38d551945306)
 
 ### 命令
 
 ```bash
-$ auth -h
+$ devicecheck -h
 chatgpt preauth devicecheck server
 
-Usage: auth
-       auth <COMMAND>
+Usage: devicecheck
+       devicecheck <COMMAND>
 
 Commands:
   run      Run server
@@ -33,10 +33,10 @@ Options:
   -h, --help     Print help
   -V, --version  Print version
 
-$ auth run -h
+$ devicecheck run -h
 Run server
 
-Usage: auth run [OPTIONS]
+Usage: devicecheck run [OPTIONS]
 
 Options:
   -d, --debug          Debug mode
@@ -55,35 +55,35 @@ Options:
 # 需要先安装rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-cargo install --git https://github.com/penumbra-x/auth
+cargo install --git https://github.com/penumbra-x/devicecheck
 ```
 
 - Docker
 
 ```bash
-docker run --rm -it -p 1080:1080 ghcr.io/penumbra-x/auth:latest run
+docker run --rm -it -p 1080:1080 ghcr.io/penumbra-x/devicecheck:latest run
 ```
 
 ### 使用
 
-该代理不会像正常代理一样提供正常的网络代理，目的是抓包`device_token`。如果害怕使用多了会被封设备，我建议是使用一些一键换机之类的仿冒设备的软件。
+该代理不会像正常代理一样提供网络代理，目的是抓包`device_token`。如果害怕使用多了会被封设备，我建议是使用一些一键换机之类的仿冒设备的软件。
 
 1. 启动服务
 
 - 运行服务
 
 ```bash
-auth run
+devicecheck run
 # 带代理
-auth run --proxy http://192.168.1.1:1080
+devicecheck run --proxy http://192.168.1.1:1080
 ```
 
 - 守护进程
 
 ```bash
-auth start
+devicecheck start
 # 带代理
-auth start --proxy http://192.168.1.1:1080
+devicecheck start --proxy http://192.168.1.1:1080
 ```
 
 2. 设置代理

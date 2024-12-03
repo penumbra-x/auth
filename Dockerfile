@@ -12,13 +12,13 @@ COPY . .
 
 # Build the project
 RUN cargo build --release
-RUN upx /app/target/release/auth
+RUN upx /app/target/release/devicecheck
 
 # Runtime stage
 FROM alpine:3.16
 
 # Copy the built binary from the builder stage
-COPY --from=builder /app/target/release/auth /bin/auth
+COPY --from=builder /app/target/release/devicecheck /bin/devicecheck
 
 # Set the entrypoint
-ENTRYPOINT ["/bin/auth"]
+ENTRYPOINT ["/bin/devicecheck"]

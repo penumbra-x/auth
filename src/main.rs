@@ -1,11 +1,9 @@
 mod cagen;
-#[cfg(target_family = "unix")]
 mod daemon;
 mod error;
 mod proxy;
 mod serve;
 
-use crate::serve::Serve;
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 use reqwest::Url;
@@ -68,17 +66,20 @@ pub struct BootArgs {
 
 fn main() -> Result<()> {
     let opt = Opt::parse();
+
     match opt.commands {
-        Commands::Run(args) => Serve(args).run(),
+        Commands::Run(args) =>  serve::Serve(args).run()?,
         #[cfg(target_family = "unix")]
-        Commands::Start(args) => daemon::start(args),
+        Commands::Start(args) => daemon::start(args)?,
         #[cfg(target_family = "unix")]
-        Commands::Restart(args) => daemon::restart(args),
+        Commands::Restart(args) => daemon::restart(args)?,
         #[cfg(target_family = "unix")]
-        Commands::Stop => daemon::stop(),
+        Commands::Stop => daemon::stop()?,
         #[cfg(target_family = "unix")]
-        Commands::PS => daemon::status(),
+        Commands::PS => daemon::status()?,
         #[cfg(target_family = "unix")]
-        Commands::Log => daemon::log(),
-    }
+        Commands::Log => daemon::log()?,
+    };
+
+    Ok(())
 }
